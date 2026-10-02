@@ -866,7 +866,10 @@ body.dragging .dropveil { display: flex; }
       h('h2', {}, 'Carica il tuo piano alimentare'),
       h('p', {}, 'Trascina qui il PDF ricevuto dalla nutrizionista (formato "Dieta a menu giornaliero") oppure scegli il file.'),
       h('button', { class: 'btn filled', onclick: () => $('#file').click() }, icon('upload'), 'Scegli il PDF'),
-      h('p', { class: 'hint' }, 'Il file viene letto solo sul tuo computer, nulla viene inviato online.'));
+      isMobile ? h('p', { class: 'hint' }, isIOS
+        ? 'Da WhatsApp: apri il PDF, tocca Condividi → "Salva su File"; poi qui scegli il file.'
+        : 'Da WhatsApp: tieni premuto il PDF → Condividi (o "Apri con") → scegli Piano Alimentare.') : null,
+      h('p', { class: 'hint' }, 'Il file viene letto solo sul tuo dispositivo, nulla viene inviato online.'));
     return zone;
   }
 
@@ -1231,6 +1234,21 @@ body.dragging .dropveil { display: flex; }
     window.addEventListener('appinstalled', () => { installEvent = null; toast('App installata: aprila dall’icona nella schermata Home'); });
     if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
     render();
+    receiveShared();
+  }
+  // PDF condiviso da un'altra app tramite il menu "Condividi" (Android, app installata)
+  async function receiveShared() {
+    if (!/[?&]shared=1/.test(location.search)) return;
+    history.replaceState(null, '', location.pathname);
+    try {
+      const c = await caches.open('piano-shared');
+      const res = await c.match('shared.pdf');
+      if (!res) return;
+      const blob = await res.blob();
+      const name = decodeURIComponent(res.headers.get('X-Filename') || 'piano.pdf');
+      await c.delete('shared.pdf');
+      await handleFile(new File([blob], name, { type: 'application/pdf' }));
+    } catch (e) { toast('Non sono riuscito a ricevere il file condiviso: scegli il PDF dal pulsante'); }
   }
   let installEvent = null;
   async function doInstall() { if (!installEvent) return; installEvent.prompt(); await installEvent.userChoice; installEvent = null; closeSheet(); }
