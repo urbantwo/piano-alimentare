@@ -222,7 +222,8 @@ body.dragging .dropveil { display: flex; }
 .arco > ul { list-style: none; margin: 0; padding: 0; columns: 2 280px; column-gap: 28px; }
 .arco .item { border-color: color-mix(in srgb, var(--on-tertiary-container) 18%, transparent); break-inside: avoid; align-items: center; }
 .arco .qty, .arco .note { color: inherit; opacity: .75; }
-.arco .item.checked .item-main { opacity: .55; text-decoration: line-through; }
+.arco .item.checked .item-main { opacity: .6; }
+.arco .item.checked .name { text-decoration: line-through; }
 .arco .btn.tonal { background: color-mix(in srgb, var(--on-tertiary-container) 14%, transparent); color: inherit; }
 .arco .mealicon { background: color-mix(in srgb, var(--on-tertiary-container) 16%, transparent); color: inherit; }
 .arco .parts { border-color: color-mix(in srgb, var(--on-tertiary-container) 30%, transparent); }
@@ -294,6 +295,20 @@ img, svg { -webkit-user-drag: none; user-drag: none; }
 .seg button.on { background: var(--secondary-container); color: var(--on-secondary-container); }
 .seg button svg.ic { width: 18px; height: 18px; }
 .fontprev { margin: 0; padding: 10px 14px; border-radius: var(--shape-md); background: var(--surface-container); }
+
+/* ---------- contatore (arco della giornata) ---------- */
+.stepper { display: grid; grid-template-columns: auto auto auto 1fr; align-items: center; gap: 6px; margin-top: 6px; max-width: 320px; }
+.stepper .bar { grid-column: 4; height: 6px; margin-left: 6px; background: color-mix(in srgb, var(--on-tertiary-container) 18%, transparent); }
+.stepper .bar > i { background: var(--primary); }
+.stepper .count { min-width: 56px; text-align: center; font-size: .9375rem; }
+.stepper .count b { font-size: 1.125rem; font-weight: 600; }
+.iconbtn.sm { width: 36px; height: 36px; border: 1px solid color-mix(in srgb, currentColor 40%, transparent); color: inherit; }
+.iconbtn.sm svg.ic { width: 20px; height: 20px; }
+.iconbtn.sm.filled { background: var(--primary); color: var(--on-primary); border-color: transparent; }
+.iconbtn.sm:disabled { opacity: .35; cursor: default; }
+.arco .item.checked .stepper { opacity: .7; }
+.credit { text-align: center; margin: 22px 0 2px; font-size: .875rem; color: var(--on-surface-variant); -webkit-user-select: text; user-select: text; }
+.credit a { color: var(--primary); font-weight: 500; text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--primary) 40%, transparent); }
 </style>
 </head>
 <body>
@@ -752,6 +767,7 @@ img, svg { -webkit-user-drag: none; user-drag: none; }
     collapse: 'M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z',
     event: 'M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V10h14v10zM9 14H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2zm-8 4H7v-2h2v2zm4 0h-2v-2h2v2z',
     person: 'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z',
+    minus: 'M19 13H5v-2h14z',
     install: 'M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z',
   };
   function icon(name) {
@@ -864,8 +880,19 @@ img, svg { -webkit-user-drag: none; user-drag: none; }
   }
 
   /* ---------- "Nell'arco della giornata": non è un pasto, ma una lista da spuntare ---------- */
+  // quantità "a unità" frazionabili: "8 cucchiaini", "2 tazzine" (non "g 120", non "1 porzione")
+  const countOf = (qty) => { const m = /^(\d+)\s+[a-zà-ü']+$/i.exec((qty || '').trim()); return m && +m[1] > 1 ? +m[1] : 0; };
+  function arcoState(plan, date, meal, item, idx) {
+    const shown = plan.overrides[overrideKey(date, meal.id, idx)] || item;
+    const total = countOf(shown.qty);
+    const raw = plan.checks[`${date}|${meal.id}|${idx}`];
+    if (!total) return { total: 0, val: raw ? 1 : 0, done: !!raw, shown };
+    const val = raw === true ? total : Math.min(+raw || 0, total);
+    return { total, val, done: val >= total, shown };
+  }
+
   function renderArco(plan, date, meal) {
-    const n = meal.items.filter((_, i) => plan.checks[`${date}|${ARCO}|${i}`]).length;
+    const n = meal.items.filter((it, i) => arcoState(plan, date, meal, it, i).done).length;
     const card = h('section', { class: 'arco' },
       h('header', {},
         h('div', {},
@@ -983,18 +1010,26 @@ img, svg { -webkit-user-drag: none; user-drag: none; }
     const hasInfo = cad && (cad.note || cad.options.length);
 
     const ck = `${date}|${meal.id}|${idx}`;
-    const checked = checkable && !!plan.checks[ck];
+    const st = checkable ? arcoState(plan, date, meal, item, idx) : null;
+    const checked = !!(st && st.done);
     const li = h('li', { class: 'item' + (ov ? ' changed' : '') + (checked ? ' checked' : '') });
-    if (checkable) {
+    if (checkable && !st.total) {
       li.append(h('button', {
         class: 'cbox' + (checked ? ' on' : ''), role: 'checkbox', 'aria-checked': checked, 'aria-label': `Segna ${shown.name} come fatto`,
         onclick: () => { if (checked) delete plan.checks[ck]; else plan.checks[ck] = true; save(); render(); },
       }, checked ? icon('check') : null));
     }
+    const setCount = (v) => { if (v <= 0) delete plan.checks[ck]; else plan.checks[ck] = v; save(); render(); };
+    const stepper = checkable && st.total ? h('div', { class: 'stepper' },
+      h('button', { class: 'iconbtn sm', onclick: () => setCount(st.val - 1), 'aria-label': 'Uno in meno', disabled: st.val <= 0 }, icon('minus')),
+      h('span', { class: 'count', 'aria-live': 'polite' }, h('b', {}, String(st.val)), ` / ${st.total}`),
+      h('button', { class: 'iconbtn sm filled', onclick: () => setCount(st.val + 1), 'aria-label': 'Uno in più', disabled: st.val >= st.total }, icon('add')),
+      h('div', { class: 'bar' }, h('i', { style: `width:${(st.val / st.total) * 100}%` }))) : null;
     const main = h('div', { class: 'item-main' },
       h('span', { class: 'name' }, shown.name, shown.qty && h('span', { class: 'qty' }, shown.qty)),
       shown.parts && shown.parts.length ? h('ul', { class: 'parts' }, shown.parts.map((p) => h('li', {}, p.name, h('span', { class: 'qty' }, p.qty)))) : null,
       shown.note ? h('span', { class: 'note' }, shown.note) : null,
+      stepper,
       ov ? h('span', { class: 'was' }, `al posto di: ${item.name}${item.qty ? ' (' + item.qty + ')' : ''}`) : null);
     li.append(main);
     if (hasAlt || hasInfo) {
@@ -1154,7 +1189,7 @@ img, svg { -webkit-user-drag: none; user-drag: none; }
 
     if (plan) {
       body.append(h('h3', {}, 'Data di inizio'),
-        h('p', { class: 'sheet-sub' }, 'Scegli il giorno da cui parte la Settimana 1 (le settimane iniziano di lunedì e si alternano ogni 7 giorni).'),
+        h('p', { class: 'sheet-sub' }, 'Scegli il giorno da cui parte la Settimana 1 (le settimane iniziano di lunedì e si susseguono a rotazione, qualunque sia il loro numero: 2, 3, 4…).'),
         h('div', { class: 'row' },
           h('input', { type: 'date', id: 'startDate', value: plan.startDate }),
           h('button', { class: 'btn filled', onclick: () => {
@@ -1188,6 +1223,8 @@ img, svg { -webkit-user-drag: none; user-drag: none; }
       h('div', { class: 'row wrap' },
         h('button', { class: 'btn', onclick: exportBackup }, icon('download'), 'Esporta backup'),
         h('button', { class: 'btn', onclick: () => $('#backupFile').click() }, icon('upload'), 'Importa backup')));
+    body.append(h('p', { class: 'credit' }, 'Made with ❤️ by ',
+      h('a', { href: 'https://www.instagram.com/urbantwo/', target: '_blank', rel: 'noopener noreferrer' }, 'Urbantwo')));
     if (installEvent) body.append(h('h3', {}, 'App'), h('button', { class: 'btn tonal', onclick: doInstall }, icon('install'), 'Installa su questo dispositivo'));
     showSheet('Piani e impostazioni', body);
   }
