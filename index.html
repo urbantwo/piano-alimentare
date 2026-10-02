@@ -142,7 +142,12 @@ dialog[open] { display: flex; flex-direction: column; animation: pop .22s cubic-
 .sheet-head h2 { font-size: 1.5rem; font-weight: 400; }
 .sheet-body { padding: 8px 24px 24px; overflow: auto; display: flex; flex-direction: column; gap: 14px; }
 .sheet-sub { margin: 0; color: var(--on-surface-variant); font-size: .875rem; }
-.settings h3 { margin-top: 10px; font-size: 1rem; font-weight: 500; color: var(--primary); }
+.settings { display: flex; flex-direction: column; gap: 14px; }
+.settings h3 { margin: 14px 0 -4px; font-size: 1rem; font-weight: 500; color: var(--primary); }
+.settings h3:first-child { margin-top: 0; }
+.settings .hint { margin: 0; }
+.settings .row { margin-top: 2px; }
+.settings .planrow + .planrow { margin-top: -4px; }
 .alts { display: grid; gap: 8px; }
 .alt { text-align: left; border-radius: var(--shape-md); padding: 12px 16px; display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; background: var(--surface-container); position: relative; transition: background .15s; }
 .alt:hover { background: var(--surface-highest); }
@@ -845,13 +850,13 @@ body.dragging .dropveil { display: flex; }
 
   function renderTopbar(plan) {
     const bar = $('#topbar');
-    bar.replaceChildren(
+    bar.replaceChildren(...[
       h('div', { class: 'brand' },
         h('span', { class: 'logo', 'aria-hidden': 'true' }, '🥗'),
         h('div', {}, h('strong', {}, 'Piano Alimentare'), plan && h('small', {}, plan.meta.patient ? titleCase(plan.meta.patient) : plan.name))),
       plan ? renderNav()('tabs') : null,
-      h('button', { class: 'iconbtn', onclick: openSettings, 'aria-label': 'Piani e impostazioni', title: 'Piani e impostazioni' }, icon('settings'))
-    );
+      h('button', { class: 'iconbtn', onclick: openSettings, 'aria-label': 'Piani e impostazioni', title: 'Piani e impostazioni' }, icon('settings')),
+    ].filter(Boolean)); // replaceChildren trasforma null nella stringa "null"
     const bn = $('#bottomnav');
     bn.replaceChildren();
     if (plan) bn.append(...renderNav()('bottom').children);
