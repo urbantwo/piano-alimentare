@@ -323,6 +323,21 @@ img, svg { -webkit-user-drag: none; user-drag: none; }
 .shoprow .qty { margin: 0; text-align: right; white-space: normal; max-width: 45%; }
 .shoprow.on .sname, .shoprow.on .qty { opacity: .5; text-decoration: line-through; }
 .shoprow .cbox { margin: 0; border-color: var(--outline); }
+
+/* ---------- ricerca ---------- */
+.actions { display: flex; align-items: center; gap: 2px; }
+.searchbox { width: 100%; height: 52px; padding: 0 18px; font: inherit; font-size: 1rem; color: var(--on-surface); background: var(--surface-container); border: 0; border-bottom: 2px solid var(--outline); border-radius: 16px 16px 0 0; -webkit-user-select: text; user-select: text; }
+.searchbox:focus { outline: 0; border-bottom-color: var(--primary); background: var(--surface-highest); }
+.results { display: flex; flex-direction: column; gap: 8px; }
+.result { text-align: left; display: flex; gap: 14px; align-items: flex-start; padding: 12px 16px; border-radius: var(--shape-md); background: var(--surface-container); transition: background .15s; }
+.result:hover { background: var(--surface-highest); }
+.rdate { flex: none; width: 150px; display: flex; flex-direction: column; }
+.rdate b { font-weight: 500; }
+.rdate small { color: var(--on-surface-variant); }
+.rhits { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.rhit em { font-style: normal; font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; color: var(--primary); margin-right: 4px; }
+mark { background: var(--primary-container); color: var(--on-primary-container); border-radius: 4px; padding: 0 2px; }
+@media (max-width: 599px) { .result { flex-direction: column; gap: 4px; } .rdate { width: auto; flex-direction: row; gap: 8px; align-items: baseline; } }
 </style>
 </head>
 <body>
@@ -808,6 +823,7 @@ img, svg { -webkit-user-drag: none; user-drag: none; }
     event: 'M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V10h14v10zM9 14H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2zm-8 4H7v-2h2v2zm4 0h-2v-2h2v2z',
     person: 'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z',
     minus: 'M19 13H5v-2h14z',
+    search: 'M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z',
     cart: 'M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42a.25.25 0 0 1-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49A1 1 0 0 0 20 4H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z',
     copy: 'M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z',
     install: 'M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z',
@@ -965,7 +981,9 @@ img, svg { -webkit-user-drag: none; user-drag: none; }
         h('span', { class: 'logo', 'aria-hidden': 'true' }, '🥗'),
         h('div', {}, h('strong', {}, 'Piano Alimentare'), plan && h('small', {}, plan.meta.patient ? titleCase(plan.meta.patient) : plan.name))),
       plan ? renderNav()('tabs') : null,
-      h('button', { class: 'iconbtn', onclick: openSettings, 'aria-label': 'Piani e impostazioni', title: 'Piani e impostazioni' }, icon('settings')),
+      h('div', { class: 'actions' },
+        plan ? h('button', { class: 'iconbtn', onclick: () => openSearch(plan), 'aria-label': 'Cerca un ingrediente', title: 'Cerca un ingrediente' }, icon('search')) : null,
+        h('button', { class: 'iconbtn', onclick: openSettings, 'aria-label': 'Piani e impostazioni', title: 'Piani e impostazioni' }, icon('settings'))),
     ].filter(Boolean)); // replaceChildren trasforma null nella stringa "null"
     const bn = $('#bottomnav');
     bn.replaceChildren();
@@ -1082,6 +1100,65 @@ img, svg { -webkit-user-drag: none; user-drag: none; }
       }, icon(hasAlt ? 'swap' : 'info'), h('span', { class: 'lbl-hide' }, hasAlt ? 'Alternative' : 'Info')));
     }
     return li;
+  }
+
+  /* ---------- ricerca di un ingrediente nei prossimi giorni ---------- */
+  const fold = (t) => (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+  function searchPlan(plan, query) {
+    const q = fold(query).trim();
+    if (q.length < 2) return [];
+    const nWeeks = Object.keys(plan.weeks).length;
+    const today = todayIso();
+    const out = [];
+    for (let d = 0; d < nWeeks * 7; d++) {
+      const date = addDays(today, d);
+      const day = plan.weeks[weekKeyFor(plan, date)].days[weekdayIdx(date)];
+      const hits = [];
+      day.meals.forEach((meal) => meal.items.forEach((item, idx) => {
+        const ov = plan.overrides[overrideKey(date, meal.id, idx)];
+        const shown = ov || item;
+        const names = [shown.name, ...(shown.parts || []).map((p) => p.name), item.name];
+        if (names.some((n) => fold(n).includes(q))) hits.push({ meal, item: shown });
+      }));
+      if (hits.length) out.push({ date, wk: weekKeyFor(plan, date), dayName: day.name, hits });
+    }
+    return out;
+  }
+
+  function markText(text, query) {
+    const q = fold(query).trim();
+    const i = q ? fold(text).indexOf(q) : -1;
+    if (i < 0) return text;
+    return [text.slice(0, i), h('mark', {}, text.slice(i, i + q.length)), text.slice(i + q.length)];
+  }
+
+  function openSearch(plan) {
+    const nDays = Object.keys(plan.weeks).length * 7;
+    const results = h('div', { class: 'results', 'aria-live': 'polite' });
+    const input = h('input', { type: 'search', class: 'searchbox', placeholder: 'Cerca un ingrediente, es. salmone', 'aria-label': 'Cerca un ingrediente', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false' });
+    const draw = () => {
+      const q = input.value;
+      results.replaceChildren();
+      if (fold(q).trim().length < 2) { results.append(h('p', { class: 'hint' }, `Scrivi almeno due lettere: ti mostro in quali giorni dei prossimi ${nDays} giorni (tutta la rotazione) compare.`)); return; }
+      const found = searchPlan(plan, q);
+      if (!found.length) { results.append(h('p', { class: 'hint' }, `Nessun risultato nei prossimi ${nDays} giorni.`)); return; }
+      const total = found.reduce((a, f) => a + f.hits.length, 0);
+      results.append(h('p', { class: 'hint' }, `${total} ${total === 1 ? 'risultato' : 'risultati'} in ${found.length} ${found.length === 1 ? 'giorno' : 'giorni'}`));
+      found.forEach((f) => {
+        const d = parseIso(f.date);
+        results.append(h('button', { class: 'result', onclick: () => { tab = 'piano'; closeSheet(); go(f.date); } },
+          h('span', { class: 'rdate' },
+            h('b', {}, `${f.dayName} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`),
+            h('small', {}, [f.date === todayIso() ? 'Oggi · ' : '', `Settimana ${f.wk}`].join(''))),
+          h('span', { class: 'rhits' }, f.hits.map((x) => h('span', { class: 'rhit' },
+            h('em', {}, x.meal.label), ' ', markText(x.item.name, q), x.item.qty ? h('span', { class: 'qty' }, x.item.qty) : null)))));
+      });
+    };
+    input.addEventListener('input', draw);
+    draw();
+    showSheet('Cerca', h('div', { class: 'settings' }, input, results));
+    setTimeout(() => input.focus(), 60);
   }
 
   /* ---------- lista della spesa settimanale ---------- */
