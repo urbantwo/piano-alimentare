@@ -309,6 +309,20 @@ img, svg { -webkit-user-drag: none; user-drag: none; }
 .arco .item.checked .stepper { opacity: .7; }
 .credit { text-align: center; margin: 22px 0 2px; font-size: .875rem; color: var(--on-surface-variant); -webkit-user-select: text; user-select: text; }
 .credit a { color: var(--primary); font-weight: 500; text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--primary) 40%, transparent); }
+
+/* ---------- lista della spesa ---------- */
+.progress-wrap .btn { margin-left: 4px; }
+.weeknav { display: flex; align-items: center; justify-content: space-between; text-align: center; }
+.weeknav b { display: block; font-size: 1.0625rem; font-weight: 500; }
+.weeknav small { color: var(--on-surface-variant); }
+.shop h3 { margin: 10px 0 -4px; }
+.shoplist { list-style: none; margin: 0; padding: 0; }
+.shoprow { width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 4px; text-align: left; border-top: 1px solid var(--outline-variant); }
+.shoplist li:first-child .shoprow { border-top: 0; }
+.shoprow .sname { flex: 1; font-weight: 500; }
+.shoprow .qty { margin: 0; text-align: right; white-space: normal; max-width: 45%; }
+.shoprow.on .sname, .shoprow.on .qty { opacity: .5; text-decoration: line-through; }
+.shoprow .cbox { margin: 0; border-color: var(--outline); }
 </style>
 </head>
 <body>
@@ -616,12 +630,36 @@ img, svg { -webkit-user-drag: none; user-drag: none; }
     return sections.filter((x) => x.blocks.length);
   }
 
+  /* ---------- lista della spesa settimanale ---------- */
+
+  function parseShopping(page) {
+    const sections = [];
+    let cur = null;
+    for (const ln of toLines(page.items)) {
+      if (ln.y < 58 || /^Elaborato da|^Powered by|^\d+$/.test(ln.text)) continue;
+      if (/^Alimenti assegnati|^STEFANO|^[A-ZÀ-Ü' ]{5,}$/.test(ln.text) && ln.segs.length === 1 && (ln.x > 200 || /^Alimenti/.test(ln.text))) continue;
+      if (ln.segs.length === 1 && ln.x > 200) { cur = { title: ln.text, items: [] }; sections.push(cur); continue; }
+      // il nome è il primo gruppo di segmenti contigui; dopo uno stacco netto inizia la quantità
+      let cut = ln.segs.length;
+      for (let i = 1; i < ln.segs.length; i++) {
+        if (ln.segs[i].x - (ln.segs[i - 1].x + ln.segs[i - 1].w) > 25) { cut = i; break; }
+      }
+      const nameSegs = ln.segs.slice(0, cut);
+      const qtySegs = ln.segs.slice(cut);
+      const name = nameSegs.map((x) => x.str).join(' ').replace(/\s+/g, ' ').trim();
+      if (!name || !cur) continue;
+      cur.items.push({ name, qty: qtySegs.map((x) => x.str).join(' ').replace(/\s+/g, ' ').trim() });
+    }
+    return sections.filter((x) => x.items.length);
+  }
+
   /* ---------- piano completo ---------- */
 
   function parsePlan(pages) {
     const meta = { patient: '', dietitian: '', visitDate: '' };
     const weeks = {};
     let cadStart = -1, infoStart = -1, firstWeek = -1, profile = null;
+    const shopping = {};
 
     pages.forEach((pg, idx) => {
       const lines = toLines(pg.items);
@@ -632,6 +670,8 @@ img, svg { -webkit-user-drag: none; user-drag: none; }
         const days = parseWeekGrid(pg);
         if (days) weeks[wm[1]] = { days };
       }
+      const sh = lines.find((l) => /^Alimenti assegnati nella settimana n\.\s*(\d+)/.test(l.text));
+      if (sh) { const sec = parseShopping(pg); if (sec.length) shopping[sh.text.match(/n\.\s*(\d+)/)[1]] = sec; }
       if (!profile && /Visita del:/.test(lines.map((l) => l.text).join(' '))) profile = parseProfile(pg);
       if (infoStart < 0 && /^NORME GENERALI/.test(first)) infoStart = idx;
       if (cadStart < 0 && /^Codici alimentari dietetici/i.test(first)) cadStart = idx;
@@ -648,7 +688,7 @@ img, svg { -webkit-user-drag: none; user-drag: none; }
     const cad = cadStart >= 0 ? parseCad(pages, cadStart) : {};
     attachAlternatives(weeks, cad);
     const info = infoStart >= 0 && firstWeek > infoStart ? parseInfo(pages, infoStart, firstWeek) : [];
-    return { meta, weeks, cad: slimCad(cad), profile, info };
+    return { meta, weeks, cad: slimCad(cad), profile, info, shopping };
   }
 
   // collega ogni alimento della griglia al relativo codice CAD
@@ -768,6 +808,8 @@ img, svg { -webkit-user-drag: none; user-drag: none; }
     event: 'M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V10h14v10zM9 14H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2zm-8 4H7v-2h2v2zm4 0h-2v-2h2v2z',
     person: 'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z',
     minus: 'M19 13H5v-2h14z',
+    cart: 'M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42a.25.25 0 0 1-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49A1 1 0 0 0 20 4H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z',
+    copy: 'M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z',
     install: 'M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z',
   };
   function icon(name) {
@@ -874,7 +916,8 @@ img, svg { -webkit-user-drag: none; user-drag: none; }
     meals.forEach((meal) => list.append(renderMeal(plan, date, meal)));
     app.append(h('div', { class: 'progress-wrap' },
       h('div', { class: 'bar' }, h('i', { style: `width:${(doneCount / meals.length) * 100}%` })),
-      h('span', {}, `${doneCount}/${meals.length} pasti`)), list);
+      h('span', {}, `${doneCount}/${meals.length} pasti`),
+      h('button', { class: 'btn small tonal', onclick: () => openShopping(plan, mondayOf(date)) }, icon('cart'), 'Spesa')), list);
     if (arco && arco.items.length) app.append(renderArco(plan, date, arco));
     app.append(h('p', { class: 'footnote' }, 'Il peso degli alimenti è a crudo, salvo diversa indicazione. Le sostituzioni valgono solo per il giorno in cui le scegli.'));
   }
@@ -1039,6 +1082,71 @@ img, svg { -webkit-user-drag: none; user-drag: none; }
       }, icon(hasAlt ? 'swap' : 'info'), h('span', { class: 'lbl-hide' }, hasAlt ? 'Alternative' : 'Info')));
     }
     return li;
+  }
+
+  /* ---------- lista della spesa settimanale ---------- */
+  const tidyQty = (q) => (q || '')
+    .replace(/\bg\s*([\d.,]+)/g, '$1 g')
+    .replace(/\d+\s+quantità bastanti?/i, 'q.b.')
+    .replace(/quantità bastanti?/i, 'q.b.');
+
+  function shoppingText(plan, wk, monday, sections) {
+    const lines = [`Lista della spesa — Settimana ${wk} (${fmtItDate(monday)} – ${fmtItDate(addDays(monday, 6))})`, ''];
+    for (const sec of sections) {
+      lines.push(sec.title);
+      sec.items.forEach((it) => lines.push(`- ${it.name}: ${tidyQty(it.qty)}`));
+      lines.push('');
+    }
+    return lines.join('\n').trim();
+  }
+
+  function openShopping(plan, monday) {
+    if (!plan.shopping || !Object.keys(plan.shopping).length) {
+      showSheet('Lista della spesa', h('div', { class: 'settings' },
+        h('p', { class: 'sheet-sub' }, 'Per vedere la lista della spesa ricarica il PDF: questo piano è stato caricato prima che esistesse questa funzione.'),
+        h('button', { class: 'btn filled', onclick: () => { closeSheet(); $('#file').click(); } }, icon('upload'), 'Ricarica il PDF')));
+      return;
+    }
+    plan.shopChecks = plan.shopChecks || {};
+    const wk = weekKeyFor(plan, monday);
+    const sections = plan.shopping[wk] || [];
+    const key = (name) => `${monday}|${name}`;
+    const all = sections.flatMap((x) => x.items);
+    const got = all.filter((i) => plan.shopChecks[key(i.name)]).length;
+
+    const body = h('div', { class: 'settings shop' });
+    body.append(h('div', { class: 'weeknav' },
+      h('button', { class: 'iconbtn', onclick: () => openShopping(plan, addDays(monday, -7)), 'aria-label': 'Settimana precedente' }, icon('left')),
+      h('div', {}, h('b', {}, `Settimana ${wk}`), h('small', {}, `${fmtItDate(monday)} – ${fmtItDate(addDays(monday, 6))}`)),
+      h('button', { class: 'iconbtn', onclick: () => openShopping(plan, addDays(monday, 7)), 'aria-label': 'Settimana successiva' }, icon('right'))));
+    body.append(h('div', { class: 'progress-wrap' }, h('div', { class: 'bar' }, h('i', { style: `width:${all.length ? (got / all.length) * 100 : 0}%` })), h('span', {}, `${got}/${all.length} presi`)));
+
+    sections.forEach((sec) => {
+      body.append(h('h3', {}, sec.title));
+      const ul = h('ul', { class: 'shoplist' });
+      sec.items.forEach((it) => {
+        const on = !!plan.shopChecks[key(it.name)];
+        ul.append(h('li', {}, h('button', {
+          class: 'shoprow' + (on ? ' on' : ''), role: 'checkbox', 'aria-checked': String(on),
+          onclick: () => { if (on) delete plan.shopChecks[key(it.name)]; else plan.shopChecks[key(it.name)] = true; save(); openShopping(plan, monday); },
+        }, h('span', { class: 'cbox' + (on ? ' on' : '') }, on ? icon('check') : null), h('span', { class: 'sname' }, it.name), h('span', { class: 'qty' }, tidyQty(it.qty)))));
+      });
+      body.append(ul);
+    });
+
+    const text = shoppingText(plan, wk, monday, sections);
+    body.append(h('div', { class: 'row wrap' },
+      h('button', { class: 'btn', onclick: async () => {
+        try {
+          if (navigator.share && isMobile) { await navigator.share({ text }); return; }
+          await navigator.clipboard.writeText(text); toast('Lista copiata negli appunti');
+        } catch (e) { if (!e || e.name !== 'AbortError') toast('Non riesco a copiare la lista'); }
+      } }, icon('copy'), isMobile && navigator.share ? 'Condividi lista' : 'Copia lista'),
+      h('button', { class: 'btn text', onclick: () => {
+        sections.flatMap((x) => x.items).forEach((i) => delete plan.shopChecks[key(i.name)]);
+        save(); openShopping(plan, monday);
+      } }, 'Azzera spunte')));
+    showSheet('Lista della spesa', body);
   }
 
   /* ---------- profilo: dati della visita e grafici ---------- */
@@ -1281,7 +1389,7 @@ img, svg { -webkit-user-drag: none; user-drag: none; }
       const id = 'p' + Date.now().toString(36);
       const visit = parsed.meta.visitDate;
       const name = `${parsed.meta.patient ? titleCase(parsed.meta.patient) + ' — ' : ''}${visit ? 'visita del ' + fmtItDate(visit) : file.name.replace(/\.pdf$/i, '')}`;
-      const plan = { id, name, meta: parsed.meta, weeks: parsed.weeks, cad: parsed.cad, profile: parsed.profile, info: parsed.info, importedAt: Date.now(), startDate: mondayOf(todayIso()), overrides: {}, done: {}, checks: {} };
+      const plan = { id, name, meta: parsed.meta, weeks: parsed.weeks, cad: parsed.cad, shopping: parsed.shopping, profile: parsed.profile, info: parsed.info, importedAt: Date.now(), startDate: mondayOf(todayIso()), overrides: {}, done: {}, checks: {} };
       state.plans[id] = plan; state.activePlanId = id; save();
       viewDate = todayIso();
       render();

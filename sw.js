@@ -1,5 +1,5 @@
 // Service worker: l'app funziona offline dopo la prima visita. Incrementa VERSION a ogni nuova build.
-const VERSION = 'muqydp20';
+const VERSION = 'muuygsij';
 const CACHE = 'piano-alimentare-' + VERSION;
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-180.png'];
 
