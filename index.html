@@ -338,6 +338,15 @@ img, svg { -webkit-user-drag: none; user-drag: none; }
 .rhit em { font-style: normal; font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; color: var(--primary); margin-right: 4px; }
 mark { background: var(--primary-container); color: var(--on-primary-container); border-radius: 4px; padding: 0 2px; }
 @media (max-width: 599px) { .result { flex-direction: column; gap: 4px; } .rdate { width: auto; flex-direction: row; gap: 8px; align-items: baseline; } }
+
+/* ---------- tastiera su telefono: nessuno slittamento ---------- */
+html:has(dialog[open]) { overflow: hidden; }
+dialog.top { margin-top: 12px; margin-bottom: auto; }
+@media (max-width: 599px) {
+  dialog.top { margin: 12px auto auto; width: calc(100vw - 16px); max-width: calc(100vw - 16px); border-radius: 28px; padding-bottom: 0; }
+  dialog.top[open] { animation: pop .22s cubic-bezier(.2, 0, 0, 1); }
+  dialog.top .sheet-head::before { display: none; }
+}
 </style>
 </head>
 <body>
@@ -1157,8 +1166,10 @@ mark { background: var(--primary-container); color: var(--on-primary-container);
     };
     input.addEventListener('input', draw);
     draw();
-    showSheet('Cerca', h('div', { class: 'settings' }, input, results));
-    setTimeout(() => input.focus(), 60);
+    // su telefono il foglio resta ancorato in alto: la tastiera non lo sposta e non serve il focus automatico
+    showSheet('Cerca', h('div', { class: 'settings' }, input, results), { top: true });
+    fitSheetToViewport();
+    if (!isMobile) setTimeout(() => input.focus(), 60);
   }
 
   /* ---------- lista della spesa settimanale ---------- */
@@ -1351,12 +1362,21 @@ mark { background: var(--primary-container); color: var(--on-primary-container);
     showSheet(item.name, body);
   }
 
-  function showSheet(title, body) {
+  function showSheet(title, body, opts) {
     const dlg = $('#sheet');
+    dlg.classList.toggle('top', !!(opts && opts.top));
+    if (!(opts && opts.top)) { dlg.style.maxHeight = ''; dlg.style.marginTop = ''; }
     dlg.replaceChildren(
       h('div', { class: 'sheet-head' }, h('h2', {}, title), h('button', { class: 'iconbtn', onclick: closeSheet, 'aria-label': 'Chiudi' }, icon('close'))),
       h('div', { class: 'sheet-body' }, body));
     if (!dlg.open) dlg.showModal();
+  }
+  // con la tastiera aperta adatta il foglio all'area realmente visibile
+  function fitSheetToViewport() {
+    const dlg = $('#sheet'), vv = window.visualViewport;
+    if (!dlg.classList.contains('top') || !vv) return;
+    dlg.style.maxHeight = Math.max(240, vv.height - 24) + 'px';
+    dlg.style.marginTop = (vv.offsetTop + 12) + 'px';
   }
   function closeSheet() { const d = $('#sheet'); if (d.open) d.close(); }
 
@@ -1496,6 +1516,7 @@ mark { background: var(--primary-container); color: var(--on-primary-container);
       if (e.key === 'ArrowLeft') go(addDays(viewDate, -1));
       if (e.key === 'ArrowRight') go(addDays(viewDate, 1));
     });
+    if (window.visualViewport) { visualViewport.addEventListener('resize', fitSheetToViewport); visualViewport.addEventListener('scroll', fitSheetToViewport); }
     // esperienza "app": niente zoom a pizzico, niente menu contestuale, niente scorciatoie degli strumenti sviluppatore
     for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, (e) => e.preventDefault());
     window.addEventListener('wheel', (e) => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
